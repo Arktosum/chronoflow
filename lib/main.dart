@@ -1,8 +1,9 @@
+import 'package:chronoflow/core/router/main_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/theme/app_theme.dart'; // Your dark mode setup
-import 'features/capture/capture_screen.dart';
+import 'features/history/edit_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,9 +22,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/',
-        builder: (context, state) => const CaptureScreen(),
+        builder: (context, state) => const MainLayout(),
       ),
       // Add /history, /entities here later
+
+      GoRoute(
+        path: '/edit/:id',
+        builder: (context, state) {
+          final id = int.parse(state.pathParameters['id']!);
+          return EditScreen(thoughtId: id);
+        },
+      ),
     ],
   );
 });
@@ -44,4 +53,3 @@ class ChronoflowApp extends ConsumerWidget {
     );
   }
 }
-

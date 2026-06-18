@@ -25,6 +25,7 @@ dependencies:
   intl: ^0.19.0 # Date formatting
   lucide_icons: 0.257.0 # Clean, modern icons
   uuid: ^4.3.3 # For unique tag generation if needed
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
