@@ -22,12 +22,3 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
-
-subprojects {
-    plugins.withId("com.android.library") {
-        val android = extensions.getByType(com.android.build.gradle.LibraryExtension::class.java)
-        if (android.namespace == null) {
-            android.namespace = project.group.toString()
-        }
-    }
-}

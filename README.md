@@ -1,4 +1,4 @@
-# chronoflow
+# life_gui
 
 A new Flutter project.
 

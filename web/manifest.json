@@ -1,6 +1,6 @@
 {
-    "name": "chronoflow",
-    "short_name": "chronoflow",
+    "name": "life_gui",
+    "short_name": "life_gui",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

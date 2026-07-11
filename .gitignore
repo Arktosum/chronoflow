@@ -1,73 +1,45 @@
-# -------------------------------------------------------------------------
-# Flutter / Dart Defaults
-# -------------------------------------------------------------------------
-# Tooling and build outputs
-.dark_tool/
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
 .dart_tool/
-.flutter-plugins
 .flutter-plugins-dependencies
-.packages
 .pub-cache/
 .pub/
 /build/
+/coverage/
 
-# Web specific build artifacts
-build/
-web/flutter_service_worker.js
-
-# Symbolication / Debug files
+# Symbolication related
 app.*.symbols
+
+# Obfuscation related
 app.*.map.json
 
-# -------------------------------------------------------------------------
-# Platform-Specific Ephemeral / Build Files
-# -------------------------------------------------------------------------
-# Android
-.gradle/
-local.properties
-**/android/flutter_plugin_actions.json
-**/android/key.properties
-
-# iOS / macOS
-**/ios/Flutter/Generated.xcconfig
-**/ios/Flutter/flutter_export_environment.sh
-**/ios/Flutter/App.framework
-**/ios/Flutter/Flutter.framework
-**/ios/Flutter/Flutter.podspec
-**/ios/DerivedData/
-*.xccheckout
-*.xcworkspace
-!**/ios/Runner.xcworkspace # Keep the workspace structure, ignore individual user states
-**/Pods/
-Podfile.lock
-
-# Linux / Windows
-**/linux/flutter/
-**/windows/flutter/
-
-# -------------------------------------------------------------------------
-# IDEs and Text Editors
-# -------------------------------------------------------------------------
-# JetBrains / Android Studio
-.idea/
-*.iml
-*.iws
-
-# Visual Studio Code
-.vscode/
-
-# System-specific garbage
-.DS_Store
-Thumbs.db
-
-# -------------------------------------------------------------------------
-# Security & Credentials (Crucial)
-# -------------------------------------------------------------------------
-# Environment secrets
-.env
-*.env
-
-# Keystores / Provisioning Profiles
-*.keystore
-*.jks
-*.p12
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
