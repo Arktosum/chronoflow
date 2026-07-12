@@ -20,9 +20,12 @@ class SkyScreen extends ConsumerWidget {
 
     return NightSkyBackground(
       seed: 21,
+      flavor: SkyFlavor.sky,
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(title: const Text('THE SKY')),
+        appBar: AppBar(
+            title:
+                const ChronoTitle(lens: 'THE SKY', accent: RiverColors.purple)),
         body: habits.when(
           loading: () => const Center(
             child: CircularProgressIndicator(color: RiverColors.purple),

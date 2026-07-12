@@ -61,6 +61,7 @@ class HabitDetailScreen extends ConsumerWidget {
       identityName: habit.identityName,
       frequencyType: habit.frequencyType,
       timesPerWeek: habit.timesPerWeek,
+      dailyTarget: habit.dailyTarget,
       reminderMinutes: picked.hour * 60 + picked.minute,
       createdAt: habit.createdAt,
       isArchived: habit.isArchived,

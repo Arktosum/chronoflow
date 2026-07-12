@@ -13,31 +13,50 @@ final repositoryProvider = Provider<RiverRepository>((ref) {
   return RiverRepository();
 });
 
-/// The river itself, newest first.
+/// How deep into the river the stream has scrolled, in pages.
+const int streamPageSize = 200;
+
+class StreamDepthNotifier extends Notifier<int> {
+  @override
+  int build() => 1;
+
+  void deeper() => state++;
+}
+
+final streamDepthProvider = NotifierProvider<StreamDepthNotifier, int>(
+  StreamDepthNotifier.new,
+);
+
+/// The river itself, newest first. Grows page by page as the user
+/// scrolls toward the source — see [StreamScreen]'s scroll listener.
 final streamProvider = FutureProvider<List<EntryWithTags>>((ref) async {
-  return ref.watch(repositoryProvider).getStream(limit: 200);
+  final pages = ref.watch(streamDepthProvider);
+  return ref.watch(repositoryProvider).getStream(limit: pages * streamPageSize);
 });
 
 /// The user's one-tap feelings.
-final moodPresetsProvider =
-    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+final moodPresetsProvider = FutureProvider<List<Map<String, dynamic>>>((
+  ref,
+) async {
   return ref.watch(repositoryProvider).getMoodPresets();
 });
 
 /// Every entry carrying a tag — key is `kind + name`, e.g. "#gym".
-final tagEntriesProvider =
-    FutureProvider.family<List<EntryWithTags>, String>((ref, key) async {
+final tagEntriesProvider = FutureProvider.family<List<EntryWithTags>, String>((
+  ref,
+  key,
+) async {
   ref.watch(streamProvider);
   final kind = key.substring(0, 1);
   final name = key.substring(1);
-  return ref
-      .watch(repositoryProvider)
-      .getEntriesForTag(name, kind, limit: 500);
+  return ref.watch(repositoryProvider).getEntriesForTag(name, kind, limit: 500);
 });
 
 /// Entries with time-spans touching a given day (key must be date-only).
-final daySpansProvider =
-    FutureProvider.family<List<EntryWithTags>, DateTime>((ref, day) async {
+final daySpansProvider = FutureProvider.family<List<EntryWithTags>, DateTime>((
+  ref,
+  day,
+) async {
   ref.watch(streamProvider); // any new drop may carry a span
   return ref.watch(repositoryProvider).getSpansForDay(day);
 });
@@ -49,8 +68,10 @@ final continuedIdsProvider = FutureProvider<Set<int>>((ref) async {
 });
 
 /// The full thread an entry belongs to, oldest first.
-final threadProvider =
-    FutureProvider.family<List<EntryWithTags>, int>((ref, entryId) async {
+final threadProvider = FutureProvider.family<List<EntryWithTags>, int>((
+  ref,
+  entryId,
+) async {
   ref.watch(streamProvider);
   return ref.watch(repositoryProvider).getThread(entryId);
 });
@@ -70,7 +91,11 @@ class HabitStatus {
   final int todayCount;
 
   const HabitStatus(
-      this.habit, this.streak, this.totalCheckIns, this.todayCount);
+    this.habit,
+    this.streak,
+    this.totalCheckIns,
+    this.todayCount,
+  );
 
   bool get doneToday => todayCount >= habit.dailyTarget;
 }
@@ -84,19 +109,23 @@ final habitsProvider = FutureProvider<List<HabitStatus>>((ref) async {
   for (final habit in habits) {
     final checkIns = await repo.getCheckInDays(habit.id!);
     final qualifying = qualifyingDays(checkIns, habit.dailyTarget);
-    statuses.add(HabitStatus(
-      habit,
-      computeStreak(qualifying, now),
-      checkIns.length,
-      countByDay(checkIns)[today] ?? 0,
-    ));
+    statuses.add(
+      HabitStatus(
+        habit,
+        computeStreak(qualifying, now),
+        checkIns.length,
+        countByDay(checkIns)[today] ?? 0,
+      ),
+    );
   }
   return statuses;
 });
 
 /// Check-in days for one habit (detail view: heatmap + constellation).
-final checkInDaysProvider =
-    FutureProvider.family<List<DateTime>, int>((ref, habitId) async {
+final checkInDaysProvider = FutureProvider.family<List<DateTime>, int>((
+  ref,
+  habitId,
+) async {
   ref.watch(habitsProvider); // recompute when a check-in changes habit state
   return ref.watch(repositoryProvider).getCheckInDays(habitId);
 });
@@ -149,8 +178,9 @@ class MakoNotifier extends Notifier<MakoState> {
       final full = '$t${about.text}'.replaceAll('\n', ' ').trim();
       quote = full.length > 120 ? '${full.substring(0, 120)}…' : full;
     }
-    await repo.saveMakoMessage(MakoMessage(
-        createdAt: DateTime.now(), role: 'me', text: q, quote: quote));
+    await repo.saveMakoMessage(
+      MakoMessage(createdAt: DateTime.now(), role: 'me', text: q, quote: quote),
+    );
     state = const MakoState(thinking: true);
     ref.invalidate(makoChatProvider);
 
@@ -159,19 +189,23 @@ class MakoNotifier extends Notifier<MakoState> {
       final aboutBlock = about == null
           ? ''
           : 'The specific journal thought I\'m asking about '
-              '(written ${about.createdAt}):\n'
-              '"${about.title != null ? "${about.title}\n" : ""}${about.text}"\n\n';
-      final reply = await ref.read(makoServiceProvider).chat(
-          'My question: $q\n\n'
-          '$aboutBlock'
-          'For context, these are my recent journal entries from the river, '
-          'oldest first:\n${riverDigest(recent)}\n\n'
-          'Answer my question directly and personally, drawing on the '
-          'journal context above — refer to specific entries, days, or '
-          'feelings when they\'re relevant.',
-          token: await _token());
-      await repo.saveMakoMessage(MakoMessage(
-          createdAt: DateTime.now(), role: 'mako', text: reply));
+                '(written ${about.createdAt}):\n'
+                '"${about.title != null ? "${about.title}\n" : ""}${about.text}"\n\n';
+      final reply = await ref
+          .read(makoServiceProvider)
+          .chat(
+            'My question: $q\n\n'
+            '$aboutBlock'
+            'For context, these are my recent journal entries from the river, '
+            'oldest first:\n${riverDigest(recent)}\n\n'
+            'Answer my question directly and personally, drawing on the '
+            'journal context above — refer to specific entries, days, or '
+            'feelings when they\'re relevant.',
+            token: await _token(),
+          );
+      await repo.saveMakoMessage(
+        MakoMessage(createdAt: DateTime.now(), role: 'mako', text: reply),
+      );
       state = const MakoState();
     } on MakoException catch (e) {
       state = MakoState(error: e.message);
@@ -197,9 +231,13 @@ class MakoNotifier extends Notifier<MakoState> {
 
     final since = now.subtract(const Duration(days: 2));
     final entries = await repo.getEntriesBetween(since, now);
-    final worthReading =
-        entries.any((e) => !e.entry.isMako && e.entry.createdAt.isAfter(
-            last ?? DateTime.fromMillisecondsSinceEpoch(0)));
+    final worthReading = entries.any(
+      (e) =>
+          !e.entry.isMako &&
+          e.entry.createdAt.isAfter(
+            last ?? DateTime.fromMillisecondsSinceEpoch(0),
+          ),
+    );
     if (!worthReading) {
       await repo.setMeta('last_musing', now.toIso8601String());
       return;
@@ -207,19 +245,22 @@ class MakoNotifier extends Notifier<MakoState> {
 
     state = const MakoState(thinking: true);
     try {
-      final reply = await ref.read(makoServiceProvider).chat(
-          'You\'re quietly reading my journal, as you do every hour or so. '
-          'Recent entries, oldest first:\n${riverDigest(entries)}\n\n'
-          'If something genuinely worth saying occurs to you — a pattern '
-          'you noticed, a gentle nudge, a thought I\'d be glad to find in '
-          'my stream — say it in a few sentences. If you have nothing '
-          'worthwhile right now, reply with exactly the single word PASS.',
-          token: await _token());
-      final passed =
-          reply.trim().toUpperCase().replaceAll('.', '') == 'PASS';
+      final reply = await ref
+          .read(makoServiceProvider)
+          .chat(
+            'You\'re quietly reading my journal, as you do every hour or so. '
+            'Recent entries, oldest first:\n${riverDigest(entries)}\n\n'
+            'If something genuinely worth saying occurs to you — a pattern '
+            'you noticed, a gentle nudge, a thought I\'d be glad to find in '
+            'my stream — say it in a few sentences. If you have nothing '
+            'worthwhile right now, reply with exactly the single word PASS.',
+            token: await _token(),
+          );
+      final passed = reply.trim().toUpperCase().replaceAll('.', '') == 'PASS';
       if (!passed) {
-        await repo.saveEntry(Entry(
-            createdAt: DateTime.now(), text: reply, author: 'mako'));
+        await repo.saveEntry(
+          Entry(createdAt: DateTime.now(), text: reply, author: 'mako'),
+        );
         ref.invalidate(streamProvider);
       }
       await repo.setMeta('last_musing', now.toIso8601String());
@@ -231,8 +272,9 @@ class MakoNotifier extends Notifier<MakoState> {
   }
 }
 
-final makoProvider =
-    NotifierProvider<MakoNotifier, MakoState>(MakoNotifier.new);
+final makoProvider = NotifierProvider<MakoNotifier, MakoState>(
+  MakoNotifier.new,
+);
 
 /// Call after any mutation; every lens refreshes from the same source.
 extension RiverInvalidate on WidgetRef {

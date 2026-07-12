@@ -13,6 +13,13 @@ class RiverDatabase {
     return _db!;
   }
 
+  /// Close so the file can be copied or replaced (backup/restore).
+  /// The next [database] access reopens it.
+  Future<void> close() async {
+    await _db?.close();
+    _db = null;
+  }
+
   Future<Database> _open() async {
     final path = join(await getDatabasesPath(), 'river.db');
     return openDatabase(path, version: 5, onCreate: _create, onUpgrade: _upgrade);

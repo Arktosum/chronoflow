@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../data/repositories/river_repository.dart';
 import '../../providers.dart';
+import '../../services/backup_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/night_sky.dart';
 import '../timeline/day_timeline_screen.dart';
@@ -30,8 +31,10 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
     // Mako reads the river on open and once an hour while it stays open;
     // she only speaks when she has something worth saying.
     Future.microtask(() => ref.read(makoProvider.notifier).muse());
-    _museTimer = Timer.periodic(const Duration(hours: 1),
-        (_) => ref.read(makoProvider.notifier).muse());
+    _museTimer = Timer.periodic(
+      const Duration(hours: 1),
+      (_) => ref.read(makoProvider.notifier).muse(),
+    );
   }
 
   @override
@@ -41,7 +44,10 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
   }
 
   Future<void> _confirmDelete(
-      BuildContext context, WidgetRef ref, int entryId) async {
+    BuildContext context,
+    WidgetRef ref,
+    int entryId,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -55,8 +61,10 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete',
-                style: TextStyle(color: Colors.redAccent)),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.redAccent),
+            ),
           ),
         ],
       ),
@@ -64,6 +72,68 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
     if (confirmed == true) {
       await ref.read(repositoryProvider).deleteEntry(entryId);
       ref.refreshRiver();
+    }
+  }
+
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: RiverColors.surfaceRaised,
+      ),
+    );
+  }
+
+  Future<void> _exportBackup() async {
+    try {
+      await BackupService().export();
+    } on BackupException catch (e) {
+      _snack(e.message);
+    } catch (_) {
+      _snack('Backup failed — nothing was changed.');
+    }
+  }
+
+  Future<void> _restoreBackup() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: RiverColors.surfaceRaised,
+        title: const Text('Restore a backup?'),
+        content: const Text(
+          'Everything currently in the app will be replaced by the backup. '
+          'Consider exporting the current river first.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Restore',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final restored = await BackupService().restore();
+      if (!restored) return; // picker cancelled
+      ref.refreshRiver();
+      ref.invalidate(moodPresetsProvider);
+      ref.invalidate(makoChatProvider);
+      ref.invalidate(shuffleProvider);
+      _snack('The river has returned.');
+    } on BackupException catch (e) {
+      _snack(e.message);
+    } catch (_) {
+      _snack('Restore failed — your river is unchanged.');
     }
   }
 
@@ -75,94 +145,141 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
     final mako = ref.watch(makoProvider);
 
     return NightSkyBackground(
+      flavor: SkyFlavor.river,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          title: const Text('THE RIVER'),
+          title: const ChronoTitle(lens: 'THE RIVER', accent: RiverColors.cyan),
           actions: [
             IconButton(
-              icon: Icon(Icons.sensors_rounded,
-                  color: mako.thinking
-                      ? RiverColors.purple
-                      : RiverColors.textSecondary),
+              icon: Icon(
+                Icons.sensors_rounded,
+                color: mako.thinking
+                    ? RiverColors.purple
+                    : RiverColors.textSecondary,
+              ),
               tooltip: 'Talk to Mako',
               onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute(
-                    builder: (context) => const MakoChatScreen()),
+                MaterialPageRoute(builder: (context) => const MakoChatScreen()),
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.view_day_outlined,
-                  color: RiverColors.textSecondary),
+              icon: const Icon(
+                Icons.view_day_outlined,
+                color: RiverColors.textSecondary,
+              ),
               tooltip: 'Timeline lens',
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (context) => const DayTimelineScreen()),
+                  builder: (context) => const DayTimelineScreen(),
+                ),
               ),
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(
+                Icons.more_vert_rounded,
+                color: RiverColors.textSecondary,
+              ),
+              color: RiverColors.surfaceRaised,
+              onSelected: (value) =>
+                  value == 'export' ? _exportBackup() : _restoreBackup(),
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: 'export',
+                  child: Text('Back up the river'),
+                ),
+                PopupMenuItem(
+                  value: 'restore',
+                  child: Text('Restore a backup'),
+                ),
+              ],
             ),
           ],
         ),
         body: stream.when(
+          // Keep the river on screen while a deeper page loads underneath.
+          skipLoadingOnReload: true,
           loading: () => const Center(
             child: CircularProgressIndicator(color: RiverColors.cyan),
           ),
           error: (e, _) => Center(
-            child: Text('Something snagged: $e',
-                style: const TextStyle(color: RiverColors.textSecondary)),
+            child: Text(
+              'Something snagged: $e',
+              style: const TextStyle(color: RiverColors.textSecondary),
+            ),
           ),
           data: (entries) {
+            // Deeper pages may still wait below the current scroll.
+            final mayHaveMore =
+                entries.length ==
+                ref.read(streamDepthProvider) * streamPageSize;
+
             // Newest at the top: open the app, meet your latest thought.
-            return ListView.builder(
-              padding: const EdgeInsets.only(top: 4, bottom: 110),
-              itemCount: entries.length + 1,
-              itemBuilder: (context, index) {
-                if (index == 0) {
+            return NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                // Nearing the riverbed: fetch the next page of the past.
+                if (mayHaveMore &&
+                    notification.metrics.pixels >
+                        notification.metrics.maxScrollExtent - 600) {
+                  ref.read(streamDepthProvider.notifier).deeper();
+                }
+                return false;
+              },
+              child: ListView.builder(
+                padding: const EdgeInsets.only(top: 4, bottom: 110),
+                itemCount: entries.length + 1,
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _RiverHeader(entries: entries),
+                        if (mako.thinking) const _MakoThinking(),
+                      ],
+                    );
+                  }
+                  final item = entries[index - 1];
+                  final prev = index > 1 ? entries[index - 2] : null;
+                  final showDate =
+                      prev == null ||
+                      !DateUtils.isSameDay(
+                        prev.entry.createdAt,
+                        item.entry.createdAt,
+                      );
+
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _RiverHeader(entries: entries),
-                      if (mako.thinking) const _MakoThinking(),
-                    ],
-                  );
-                }
-                final item = entries[index - 1];
-                final prev = index > 1 ? entries[index - 2] : null;
-                final showDate = prev == null ||
-                    !DateUtils.isSameDay(
-                        prev.entry.createdAt, item.entry.createdAt);
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (showDate) _DateRipple(item.entry.createdAt),
-                    EntryCard(
-                      item: item,
-                      isContinued: continuedIds.contains(item.entry.id),
-                      onThreadTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              ThreadScreen(entryId: item.entry.id!),
+                      if (showDate) _DateRipple(item.entry.createdAt),
+                      EntryCard(
+                        item: item,
+                        isContinued: continuedIds.contains(item.entry.id),
+                        onThreadTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                ThreadScreen(entryId: item.entry.id!),
+                          ),
                         ),
-                      ),
-                      onTap: item.entry.isCheckIn
-                          ? null
-                          : () => Navigator.push(
+                        onTap: item.entry.isCheckIn
+                            ? null
+                            : () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => ThoughtEditorScreen(
-                                      existing: item.entry),
+                                  builder: (context) =>
+                                      ThoughtEditorScreen(existing: item.entry),
                                   fullscreenDialog: true,
                                 ),
                               ),
-                      onLongPress: () =>
-                          _confirmDelete(context, ref, item.entry.id!),
-                    ),
-                  ],
-                );
-              },
+                        onLongPress: () =>
+                            _confirmDelete(context, ref, item.entry.id!),
+                      ),
+                    ],
+                  );
+                },
+              ),
             );
           },
         ),
@@ -198,8 +315,10 @@ class _MakoThinkingState extends State<_MakoThinking>
     return Padding(
       padding: const EdgeInsets.fromLTRB(52, 6, 20, 6),
       child: FadeTransition(
-        opacity: Tween(begin: 0.35, end: 1.0).animate(
-            CurvedAnimation(parent: _pulse, curve: Curves.easeInOut)),
+        opacity: Tween(
+          begin: 0.35,
+          end: 1.0,
+        ).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut)),
         child: const Row(
           children: [
             Icon(Icons.sensors_rounded, color: RiverColors.purple, size: 15),
@@ -228,10 +347,12 @@ class _RiverHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = DateTime.now();
-    final today =
-        entries.where((e) => DateUtils.isSameDay(e.entry.createdAt, now));
-    final drops =
-        today.where((e) => !e.entry.isCheckIn && !e.entry.isMako).length;
+    final today = entries.where(
+      (e) => DateUtils.isSameDay(e.entry.createdAt, now),
+    );
+    final drops = today
+        .where((e) => !e.entry.isCheckIn && !e.entry.isMako)
+        .length;
     final stars = today.where((e) => e.entry.isCheckIn).length;
     final shuffle = ref.watch(shuffleProvider);
 
@@ -255,14 +376,15 @@ class _RiverHeader extends ConsumerWidget {
             '$drops ${drops == 1 ? "drop" : "drops"}, $stars '
             '${stars == 1 ? "star" : "stars"} today',
             style: const TextStyle(
-                color: RiverColors.textSecondary, fontSize: 12),
+              color: RiverColors.textSecondary,
+              fontSize: 12,
+            ),
           ),
           shuffle.when(
             loading: () => const SizedBox(),
             error: (e, _) => const SizedBox(),
-            data: (old) => old == null
-                ? const SizedBox()
-                : _ShuffleCard(item: old),
+            data: (old) =>
+                old == null ? const SizedBox() : _ShuffleCard(item: old),
           ),
           if (entries.isEmpty)
             const Padding(
@@ -271,8 +393,10 @@ class _RiverHeader extends ConsumerWidget {
                 child: Text(
                   'The river is waiting.\nTap + and let a thought flow.',
                   textAlign: TextAlign.center,
-                  style:
-                      TextStyle(color: RiverColors.textSecondary, height: 1.6),
+                  style: TextStyle(
+                    color: RiverColors.textSecondary,
+                    height: 1.6,
+                  ),
                 ),
               ),
             ),
@@ -304,8 +428,7 @@ class _ShuffleCard extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-              color: RiverColors.purple.withValues(alpha: 0.35)),
+          border: Border.all(color: RiverColors.purple.withValues(alpha: 0.35)),
           boxShadow: RiverColors.glow(RiverColors.purple, strength: 0.25),
         ),
         child: Row(
@@ -350,8 +473,11 @@ class _ShuffleCard extends ConsumerWidget {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.shuffle_rounded,
-                  color: RiverColors.textFaint, size: 18),
+              icon: const Icon(
+                Icons.shuffle_rounded,
+                color: RiverColors.textFaint,
+                size: 18,
+              ),
               tooltip: 'Another one',
               onPressed: () => ref.invalidate(shuffleProvider),
             ),
@@ -372,8 +498,8 @@ class _DateRipple extends StatelessWidget {
     final label = DateUtils.isSameDay(date, now)
         ? 'TODAY'
         : DateUtils.isSameDay(date, now.subtract(const Duration(days: 1)))
-            ? 'YESTERDAY'
-            : DateFormat('EEE, d MMM yyyy').format(date).toUpperCase();
+        ? 'YESTERDAY'
+        : DateFormat('EEE, d MMM yyyy').format(date).toUpperCase();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
@@ -398,4 +524,3 @@ class _DateRipple extends StatelessWidget {
     );
   }
 }
-
