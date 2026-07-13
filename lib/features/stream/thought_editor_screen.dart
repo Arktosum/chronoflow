@@ -36,7 +36,7 @@ class ThoughtEditorScreen extends ConsumerStatefulWidget {
       _ThoughtEditorScreenState();
 }
 
-/// Live ink: @people violet, #tags cyan — colored as you type.
+/// Live ink: #tags cyan, @people violet, ~places green — colored as you type.
 class _TagInkController extends TextEditingController {
   _TagInkController([String? text]) : super(text: text);
 
@@ -54,7 +54,7 @@ class _TagInkController extends TextEditingController {
         spans.add(TextSpan(
           text: word,
           style: style?.copyWith(
-            color: word.startsWith('@') ? RiverColors.purple : RiverColors.cyan,
+            color: RiverColors.forKind(word[0]),
             fontWeight: FontWeight.bold,
           ),
         ));
@@ -95,7 +95,7 @@ class _ThoughtEditorScreenState extends ConsumerState<ThoughtEditorScreen> {
     final sel = _controller.selection;
     if (!sel.isValid || !sel.isCollapsed) return null;
     final before = _controller.text.substring(0, sel.start);
-    final m = RegExp(r'([#@])([A-Za-z0-9_]*)$').firstMatch(before);
+    final m = RegExp(r'([#@~])([A-Za-z0-9_]*)$').firstMatch(before);
     if (m == null) return null;
     return (kind: m.group(1)!, prefix: m.group(2)!, start: m.start);
   }
@@ -389,7 +389,8 @@ class _ThoughtEditorScreenState extends ConsumerState<ThoughtEditorScreen> {
                   color: RiverColors.textPrimary,
                 ),
                 decoration: const InputDecoration(
-                  hintText: 'Let it out. #tags and @people find their color.',
+                  hintText:
+                      'Let it out. #tags, @people, ~places find their color.',
                   hintStyle: TextStyle(color: RiverColors.textFaint),
                   border: InputBorder.none,
                 ),
@@ -403,9 +404,7 @@ class _ThoughtEditorScreenState extends ConsumerState<ThoughtEditorScreen> {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: _suggestions.map((tag) {
-                  final color = tag.kind == '@'
-                      ? RiverColors.purple
-                      : RiverColors.cyan;
+                  final color = RiverColors.forKind(tag.kind);
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: GestureDetector(

@@ -240,7 +240,7 @@ class _InkTextState extends State<InkText> {
           text: word,
           recognizer: recognizer,
           style: base.copyWith(
-            color: kind == '@' ? RiverColors.purple : RiverColors.cyan,
+            color: RiverColors.forKind(kind),
             fontWeight: FontWeight.bold,
           ),
         ));

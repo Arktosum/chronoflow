@@ -9,6 +9,15 @@ class RiverColors {
 
   static const Color purple = Color(0xFFB16CFF); // neon violet
   static const Color cyan = Color(0xFF00F0FF); // electric cyan
+  static const Color mint = Color(0xFF39FF88); // grounded green (places)
+
+  /// The color a sigil wears everywhere it's shown as ink:
+  /// #topic cyan · @person violet · ~place green.
+  static Color forKind(String kind) => switch (kind) {
+        '@' => purple,
+        '~' => mint,
+        _ => cyan,
+      };
 
   static const Color textPrimary = Color(0xFFEAEAF2);
   static const Color textSecondary = Colors.white54;

@@ -10,7 +10,7 @@ import 'thread_screen.dart';
 
 /// One tag's whole history: every thought that ever touched it.
 class TagStreamScreen extends ConsumerWidget {
-  final String kind; // '#' or '@'
+  final String kind; // '#', '@', or '~'
   final String name;
   const TagStreamScreen({super.key, required this.kind, required this.name});
 
@@ -19,7 +19,7 @@ class TagStreamScreen extends ConsumerWidget {
     final entries = ref.watch(tagEntriesProvider('$kind$name'));
     final continuedIds =
         ref.watch(continuedIdsProvider).asData?.value ?? const <int>{};
-    final accent = kind == '@' ? RiverColors.purple : RiverColors.cyan;
+    final accent = RiverColors.forKind(kind);
 
     return NightSkyBackground(
       seed: name.hashCode,

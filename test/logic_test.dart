@@ -18,6 +18,14 @@ void main() {
     test('ignores plain text and emails-like fragments', () {
       expect(parseTags('no tags here at all'), isEmpty);
     });
+
+    test('parses ~places alongside # and @', () {
+      final tags = parseTags('coffee with @sam at ~Blue_Tokai #catchup');
+      expect(tags, contains(const ParsedTag('~', 'blue_tokai')));
+      expect(tags, contains(const ParsedTag('@', 'sam')));
+      expect(tags, contains(const ParsedTag('#', 'catchup')));
+      expect(tags.length, 3);
+    });
   });
 
   group('streaks (never miss twice)', () {
